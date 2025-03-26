@@ -11,12 +11,17 @@ nairobi_zone = pytz.timezone('Africa/Nairobi')
 ATR_PERIOD = 10
 KEY_VALUE = 1.2
 
+# Full list of USDT pairs from your original script
 symbols = [
-    'BTC/USDT', 'ETH/USDT', 'XRP/USDT', 'SOL/USDT',  # Start with these, add more later
-    # Add your full list here if desired
+    'SOL/USDT', 'BTC/USDT', 'BERA/USDT', 'VINE/USDT', 'AI16Z/USDT', 'HYPE/USDT',
+    'PENGU/USDT', 'XRP/USDT', 'DOGE/USDT', 'GOAT/USDT', 'ACT/USDT', 'JUP/USDT',
+    'MOODENG/USDT', 'FLOKI/USDT', 'PEPE/USDT', 'POPCAT/USDT', 'WIF/USDT',
+    'BANANA/USDT', 'DOT/USDT', 'APE/USDT', 'SUI/USDT', 'AVAX/USDT', 'S/USDT',
+    'LTC/USDT', 'JUP/USDT', 'ADA/USDT', 'TRX/USDT', 'TON/USDT', 'APT/USDT',
+    'RENDER/USDT', 'LINK/USDT'
 ]
 
-exchange = ccxt.mexc({
+exchange = ccxt.binance({
     'enableRateLimit': True,
     'timeout': 30000,
 })
