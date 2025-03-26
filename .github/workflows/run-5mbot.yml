@@ -1,0 +1,19 @@
+name: Run UT Bot
+on:
+  schedule:
+    - cron: '0 * * * *'  # Runs at the top of every hour (UTC)
+  workflow_dispatch:    # Allows manual triggering
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.x'
+      - name: Install dependencies
+        run: pip install ccxt pandas numpy requests pytz
+      - name: Run script
+        run: python 5m1hbot.py
