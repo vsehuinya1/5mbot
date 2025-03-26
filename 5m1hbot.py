@@ -21,7 +21,7 @@ symbols = [
     'RENDER/USDT', 'LINK/USDT'
 ]
 
-exchange = ccxt.binance({
+exchange = ccxt.mexc({
     'enableRateLimit': True,
     'timeout': 30000,
 })
