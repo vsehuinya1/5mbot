@@ -19,7 +19,12 @@ M5_ATR_PERIOD = 10
 M5_KEY_VALUE = 1.0
 
 # Pairs to scan
-symbols = ['WIF/USDT', 'DOGE/USDT', 'XRP/USDT', 'AI16Z/USDT', 'BERA/USDT', 'S/USDT', 'MOODENG/USDT']
+symbols = ['SOL/USDT', 'BTC/USDT', 'BERA/USDT', 'VINE/USDT', 'AI16Z/USDT',
+    'PENGU/USDT', 'XRP/USDT', 'DOGE/USDT', 'GOAT/USDT', 'ACT/USDT', 'JUP/USDT',
+    'MOODENG/USDT', 'FLOKI/USDT', 'PEPE/USDT', 'POPCAT/USDT', 'WIF/USDT',
+    'BANANA/USDT', 'DOT/USDT', 'APE/USDT', 'SUI/USDT', 'AVAX/USDT', 'S/USDT',
+    'LTC/USDT', 'JUP/USDT', 'ADA/USDT', 'TRX/USDT', 'TON/USDT', 'APT/USDT',
+    'RENDER/USDT', 'LINK/USDT']
 
 exchange = ccxt.mexc({'enableRateLimit': True, 'timeout': 30000})
 
@@ -104,10 +109,10 @@ final_signals = sorted(final_signals, key=lambda x: x[3], reverse=True)
 
 # Send summary of last 7 signals
 if final_signals:
-    message = f"🔔 Confirmed UT Bot M5 Entries (H1: KV={H1_KEY_VALUE}, ATR={H1_ATR_PERIOD} | M5: KV={M5_KEY_VALUE}, ATR={M5_ATR_PERIOD})\n\n"
+    message = f"🔔 Confirmed M5 Entries (H1: KV={H1_KEY_VALUE}, ATR={H1_ATR_PERIOD} | M5: KV={M5_KEY_VALUE}, ATR={M5_ATR_PERIOD})\n\n"
     message += f"{'Pair':<10} | {'Signal':<6} | {'H1 Time':<16} | {'M5 Entry'}\n"
     message += "-" * 60 + "\n"
-    for pair, signal, h1_time, m5_time in final_signals[:7]:
+    for pair, signal, h1_time, m5_time in final_signals[:20]:
         h1_str = h1_time.strftime('%d-%b %H:%M') if isinstance(h1_time, pd.Timestamp) else 'N/A'
         m5_str = m5_time.strftime('%d-%b %H:%M') if isinstance(m5_time, pd.Timestamp) else 'N/A'
         message += f"{pair:<10} | {signal:<6} | {h1_str:<16} | {m5_str}\n"
@@ -115,6 +120,6 @@ if final_signals:
     send_telegram_message(message)
 else:
     print("No signals generated.")
-    send_telegram_message("🔔 No UT Bot signals in the last ~8 hours.")
+    send_telegram_message("🔔 No signals in the last ~8 hours.")
 
 print(f"Script ended at {datetime.now(nairobi_zone).strftime('%d-%b %H:%M')}")
