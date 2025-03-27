@@ -1,7 +1,7 @@
-name: Run UT Bot M15-M5
+name: Run UT Bot H1-M5
 on:
   schedule:
-    - cron: '0,15,30,45 * * * *'  # Every 15 minutes UTC
+    - cron: '0,30 * * * *'  # Every 30 minutes (UTC)
   workflow_dispatch:
 jobs:
   run:
@@ -16,4 +16,4 @@ jobs:
       - name: Install dependencies
         run: pip install ccxt pandas numpy pytz requests
       - name: Run script
-        run: python ut_bot_m15_m5.py  # Rename if different
+        run: python 5m1hbot.py
