@@ -89,7 +89,7 @@ for symbol in symbols:
         combined_df = combined_df.rename(columns={'Signal': 'M15_Signal'}).ffill()
 
         position = None
-        symbol_signals = []  # Track signals per symbol
+        symbol_signals = []
 
         for i in range(1, len(combined_df)):
             m15_signal = combined_df['M15_Signal'].iloc[i]
@@ -99,24 +99,16 @@ for symbol in symbols:
             if position is None:
                 if m15_signal == 1 and m5_signal == 1:
                     position = 'Long'
-                    signal = (symbol.replace('/USDT', ''), 'Enter Long', timestamp)
-                    symbol_signals.append(signal)
-                    send_telegram_message(f"{signal[0]} | {signal[1]} | {timestamp.strftime('%d-%b %H:%M')}")
+                    symbol_signals.append((symbol.replace('/USDT', ''), 'Enter Long', timestamp))
                 elif m15_signal == -1 and m5_signal == -1:
                     position = 'Short'
-                    signal = (symbol.replace('/USDT', ''), 'Enter Short', timestamp)
-                    symbol_signals.append(signal)
-                    send_telegram_message(f"{signal[0]} | {signal[1]} | {timestamp.strftime('%d-%b %H:%M')}")
+                    symbol_signals.append((symbol.replace('/USDT', ''), 'Enter Short', timestamp))
             elif position == 'Long' and m15_signal == -1:
                 position = None
-                signal = (symbol.replace('/USDT', ''), 'Exit Long', timestamp)
-                symbol_signals.append(signal)
-                send_telegram_message(f"{signal[0]} | {signal[1]} | {timestamp.strftime('%d-%b %H:%M')}")
+                symbol_signals.append((symbol.replace('/USDT', ''), 'Exit Long', timestamp))
             elif position == 'Short' and m15_signal == 1:
                 position = None
-                signal = (symbol.replace('/USDT', ''), 'Exit Short', timestamp)
-                symbol_signals.append(signal)
-                send_telegram_message(f"{signal[0]} | {signal[1]} | {timestamp.strftime('%d-%b %H:%M')}")
+                symbol_signals.append((symbol.replace('/USDT', ''), 'Exit Short', timestamp))
 
         # Keep last 7 signals for this symbol
         all_signals.extend(symbol_signals[-7:])
@@ -124,14 +116,14 @@ for symbol in symbols:
     except Exception as e:
         error_msg = f"Error for {symbol}: {str(e)}"
         print(error_msg)
-        send_telegram_message(error_msg)
+        all_signals.append((symbol.replace('/USDT', ''), f"Error: {str(e)}", datetime.now(nairobi_zone)))
 
 # Sort all signals by timestamp (youngest first)
 all_signals = sorted(all_signals, key=lambda x: x[2], reverse=True)
 
-# Send summary of last 7 signals if there are any new signals
+# Send summary of last 7 signals (or fewer if less exist)
 if all_signals:
-    message = f"🔔 Last 7 UT Bot Signals (M15: KV={M15_KEY_VALUE}, ATR={M15_ATR_PERIOD} | M5: KV={M5_KEY_VALUE}, ATR={M5_ATR_PERIOD})\n\n"
+    message = f"🔔 Last 7 Signals (M15: KV={M15_KEY_VALUE}, ATR={M15_ATR_PERIOD} | M5: KV={M5_KEY_VALUE}, ATR={M5_ATR_PERIOD})\n\n"
     message += f"{'Pair':<10} | {'Action':<12} | {'Time'}\n"
     message += "-" * 40 + "\n"
     for pair, action, time in all_signals[:7]:
@@ -139,5 +131,8 @@ if all_signals:
         message += f"{pair:<10} | {action:<12} | {time_str}\n"
     print(message)
     send_telegram_message(message)
+else:
+    print("No signals generated.")
+    send_telegram_message("🔔 No UT Bot signals in the last ~8 hours.")
 
 print(f"Script ended at {datetime.now(nairobi_zone).strftime('%d-%b %H:%M')}")
