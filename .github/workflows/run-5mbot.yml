@@ -1,8 +1,8 @@
-name: Run UT Bot
+name: Run UT Bot M15-M5
 on:
   schedule:
-    - cron: '0 * * * *'  # Runs at the top of every hour (UTC)
-  workflow_dispatch:    # Allows manual triggering
+    - cron: '0,15,30,45 * * * *'  # Every 15 minutes UTC
+  workflow_dispatch:
 jobs:
   run:
     runs-on: ubuntu-latest
@@ -14,6 +14,6 @@ jobs:
         with:
           python-version: '3.x'
       - name: Install dependencies
-        run: pip install ccxt pandas numpy requests pytz
+        run: pip install ccxt pandas numpy pytz requests
       - name: Run script
-        run: python 5m1hbot.py
+        run: python ut_bot_m15_m5.py  # Rename if different
