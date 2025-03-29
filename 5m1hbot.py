@@ -119,7 +119,7 @@ if recent_signals:
     message = f"🔔 Latest UT Bot M5 Entries (H1: KV={H1_KEY_VALUE}, ATR={H1_ATR_PERIOD} | M5: KV={M5_KEY_VALUE}, ATR={M5_ATR_PERIOD})\nRun at {run_time.strftime('%d-%b %H:%M:%S')}\n\n"
     message += f"{'Pair':<10} | {'Signal':<6} | {'H1 Time':<16} | {'M5 Entry'}\n"
     message += "-" * 60 + "\n"
-    for pair, signal, h1_time, m5_time in recent_signals[:7]:
+    for pair, signal, h1_time, m5_time in recent_signals[:20]:
         h1_str = h1_time.strftime('%d-%b %H:%M') if isinstance(h1_time, pd.Timestamp) else 'N/A'
         m5_str = m5_time.strftime('%d-%b %H:%M') if isinstance(m5_time, pd.Timestamp) else 'N/A'
         message += f"{pair:<10} | {signal:<6} | {h1_str:<16} | {m5_str}\n"
