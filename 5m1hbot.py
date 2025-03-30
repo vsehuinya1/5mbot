@@ -22,6 +22,7 @@ M5_KEY_VALUE = 1.0
 symbols = ['WIF/USDT', 'DOGE/USDT', 'XRP/USDT', 'AI16Z/USDT', 'BERA/USDT', 'S/USDT', 'MOODENG/USDT', 'ACT/USDT', 'BTC/USDT', 'APE/USDT', 'PEPE/USDT', 'ADA/USDT', 'LTC/USDT', 'SOL/USDT', 'DOT/USDT', 'APT/USDT', 'POPCAT/USDT', 'JUP/USDT', 'AVAX/USDT', 'RENDER/USDT', 'PENGU/USDT']
 
 exchange = ccxt.mexc({'enableRateLimit': True, 'timeout': 30000})
+exchange.load_markets()
 
 def send_telegram_message(message):
     url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage"
@@ -71,8 +72,9 @@ def ut_bot_alerts(df, atr_period=14, key_value=1.0):
 run_time = datetime.now(nairobi_zone)
 print(f"Starting script at {run_time.strftime('%d-%b %H:%M:%S')}")
 
-# Track latest signal per pair
-latest_signals = {}
+# Track signals and active positions
+final_signals = []
+active_positions = {}
 
 for symbol in symbols:
     try:
@@ -91,42 +93,64 @@ for symbol in symbols:
 
             # Fetch M5
             m5_fetch_time = datetime.now(nairobi_zone)
-            m5_ohlcv = exchange.fetch_ohlcv(symbol, timeframe='5m', limit=100)
+            m5_ohlcv = exchange.fetch_ohlcv(symbol, timeframe='5m', limit=200)  # Wider for 12-hour window
             m5_df = pd.DataFrame(m5_ohlcv, columns=['Timestamp', 'Open', 'High', 'Low', 'Close', 'Volume'])
             m5_df['Timestamp'] = pd.to_datetime(m5_df['Timestamp'], unit='ms', utc=True).dt.tz_convert(nairobi_zone)
             m5_df = ut_bot_alerts(m5_df, atr_period=M5_ATR_PERIOD, key_value=M5_KEY_VALUE)
 
-            # Latest M5 signal after H1, before run_time
+            # Latest M5 entry after H1
             m5_signals = m5_df[(m5_df['Signal'] == h1_signal) & (m5_df['Timestamp'] > h1_time) & (m5_df['Timestamp'] <= run_time)]
             if not m5_signals.empty:
-                m5_entry = m5_signals.iloc[-1]['Timestamp']  # Latest M5 entry
-                signal_type = 'Buy' if h1_signal == 1 else 'Sell'
-                latest_signals[symbol] = (symbol.replace('/USDT', ''), signal_type, h1_time, m5_entry)
-                print(f"{symbol} M5 fetched at {m5_fetch_time.strftime('%d-%b %H:%M:%S')}, latest entry at {m5_entry}")
+                latest_m5 = m5_signals.iloc[-1]
+                direction = 'Buy' if h1_signal == 1 else 'Sell'
+                active_positions[symbol] = {'time': latest_m5['Timestamp'], 'price': latest_m5['Close'], 'direction': direction}
+                final_signals.append((symbol.replace('/USDT', ''), f"Enter {direction}", h1_time, latest_m5['Timestamp'], latest_m5['Close']))
+                print(f"{symbol} M5 entry at {latest_m5['Timestamp']}")
+
+            # Check H1 for exit if position exists
+            if symbol in active_positions:
+                active_entry = active_positions[symbol]
+                h1_rows = h1_df[(h1_df['Timestamp'] <= run_time) & (h1_df['Timestamp'] >= active_entry['time'])]
+                for j, h1_row in h1_rows.iterrows():
+                    if (active_entry['direction'] == 'Buy' and h1_row['Trend'] == -1) or (active_entry['direction'] == 'Sell' and h1_row['Trend'] == 1):
+                        profit = (h1_row['Close'] - active_entry['price']) / active_entry['price'] if active_entry['direction'] == 'Buy' else (active_entry['price'] - h1_row['Close']) / active_entry['price']
+                        final_signals.append((symbol.replace('/USDT', ''), f"Exit {active_entry['direction']}", h1_time, h1_row['Timestamp'], active_entry['price'], h1_row['Close'], profit))
+                        del active_positions[symbol]
+                        print(f"{symbol} H1 exit at {h1_row['Timestamp']}")
+                        break
 
     except Exception as e:
         error_msg = f"Error for {symbol}: {str(e)}"
         print(error_msg)
-        latest_signals[symbol] = (symbol.replace('/USDT', ''), f"Error: {str(e)}", run_time, run_time)
+        final_signals.append((symbol.replace('/USDT', ''), f"Error: {str(e)}", run_time, run_time))
 
-# Convert to list, filter last 30 minutes
-final_signals = list(latest_signals.values())
+# Sort and filter last 12 hours
 final_signals = sorted(final_signals, key=lambda x: x[3], reverse=True)
-recent_signals = [sig for sig in final_signals if (run_time - sig[3]).total_seconds() <= 1800]  # 30 minutes
+recent_signals = [sig for sig in final_signals if (run_time - sig[3]).total_seconds() <= 43200]  # 12 hours
 
-# Send summary
+# Send summary of last 20 signals
 if recent_signals:
-    message = f"🔔 Latest UT Bot M5 Entries (H1: KV={H1_KEY_VALUE}, ATR={H1_ATR_PERIOD} | M5: KV={M5_KEY_VALUE}, ATR={M5_ATR_PERIOD})\nRun at {run_time.strftime('%d-%b %H:%M:%S')}\n\n"
-    message += f"{'Pair':<10} | {'Signal':<6} | {'H1 Time':<16} | {'M5 Entry'}\n"
-    message += "-" * 60 + "\n"
-    for pair, signal, h1_time, m5_time in recent_signals[:20]:
-        h1_str = h1_time.strftime('%d-%b %H:%M') if isinstance(h1_time, pd.Timestamp) else 'N/A'
-        m5_str = m5_time.strftime('%d-%b %H:%M') if isinstance(m5_time, pd.Timestamp) else 'N/A'
-        message += f"{pair:<10} | {signal:<6} | {h1_str:<16} | {m5_str}\n"
+    message = f"🔔 UT Bot H1-M5 Signals (H1: KV={H1_KEY_VALUE}, ATR={H1_ATR_PERIOD} | M5: KV={M5_KEY_VALUE}, ATR={M5_ATR_PERIOD})\nRun at {run_time.strftime('%d-%b %H:%M:%S')}\n\n"
+    message += f"{'Pair':<10} | {'Signal':<10} | {'H1 Time':<16} | {'M5 Time':<16} | {'Details'}\n"
+    message += "-" * 80 + "\n"
+    for sig in recent_signals[:20]:
+        pair = sig[0]
+        signal = sig[1]
+        h1_time = sig[2].strftime('%d-%b %H:%M') if isinstance(sig[2], pd.Timestamp) else 'N/A'
+        m5_time = sig[3].strftime('%d-%b %H:%M') if isinstance(sig[3], pd.Timestamp) else 'N/A'
+        if 'Exit' in signal:
+            entry_price, exit_price, profit = sig[4], sig[5], sig[6]
+            details = f"Entry: {entry_price:.6f}, Exit: {exit_price:.6f}, Profit: {profit:.2%}"
+        elif 'Enter' in signal:
+            entry_price = sig[4]
+            details = f"Price: {entry_price:.6f}"
+        else:
+            details = ''
+        message += f"{pair:<10} | {signal:<10} | {h1_time:<16} | {m5_time:<16} | {details}\n"
     print(message)
     send_telegram_message(message)
 else:
-    print("No recent signals in the last 30 minutes.")
-    send_telegram_message(f"🔔 No UT Bot signals in the last 30 minutes.\nRun at {run_time.strftime('%d-%b %H:%M:%S')}")
+    print("No recent signals in the last 12 hours.")
+    send_telegram_message(f"🔔 No UT Bot signals in the last 12 hours.\nRun at {run_time.strftime('%d-%b %H:%M:%S')}")
 
 print(f"Script ended at {datetime.now(nairobi_zone).strftime('%d-%b %H:%M:%S')}")
