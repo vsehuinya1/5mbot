@@ -1,19 +1,25 @@
-name: Run UT Bot H1-M5
+name: UT Bot M5-H1 Scalper
+
 on:
   schedule:
-    - cron: '0,30 * * * *'  # Every 30 minutes (UTC)
+    - cron: '*/30 * * * *'  # Every 30 minutes
   workflow_dispatch:
+
 jobs:
-  run:
+  run-scalper:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v3
+      - uses: actions/checkout@v3
       - name: Set up Python
         uses: actions/setup-python@v4
         with:
-          python-version: '3.x'
+          python-version: '3.9'
       - name: Install dependencies
-        run: pip install ccxt pandas numpy pytz requests
-      - name: Run script
-        run: python 5m1hbot.py
+        run: |
+          python -m pip install --upgrade pip
+          pip install ccxt pandas numpy requests
+      - name: Run scalper
+        env:
+          TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
+          CHAT_ID: ${{ secrets.CHAT_ID }}
+        run: python m5_h1_ut_bot.py
