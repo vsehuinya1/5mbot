@@ -22,4 +22,4 @@ jobs:
         env:
           TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
           CHAT_ID: ${{ secrets.CHAT_ID }}
-        run: python m5_h1_ut_bot.py
+        run: python 5m1hbot.py
