@@ -20,9 +20,9 @@ M5_ATR_PERIOD = 10
 M5_KEY_VALUE = 1.0
 
 # Volatility Filter Parameters
-ATR_THRESHOLD_PCT = 0.0175  # 1.75% of price
-RANGE_PERIOD = 10           # Last 10 H1 candles
-RANGE_THRESHOLD_PCT = 0.03  # 3% of price
+ATR_THRESHOLD_PCT = 0.015  # 1.5% of price (changed from 1.75%)
+RANGE_PERIOD = 10          # Last 10 H1 candles
+RANGE_THRESHOLD_PCT = 0.02 # 2% of price (changed from 3%)
 
 # Pairs to scan
 symbols = ['WIF/USDT', 'DOGE/USDT', 'XRP/USDT', 'AI16Z/USDT', 'BERA/USDT', 'S/USDT', 'MOODENG/USDT', 'ACT/USDT', 'BTC/USDT', 'APE/USDT', 'PEPE/USDT', 'ADA/USDT', 'LTC/USDT', 'SOL/USDT', 'DOT/USDT', 'APT/USDT', 'POPCAT/USDT', 'JUP/USDT', 'AVAX/USDT', 'RENDER/USDT', 'PENGU/USDT']
@@ -88,7 +88,10 @@ for symbol in symbols:
         h1_df = pd.DataFrame(h1_ohlcv, columns=['Timestamp', 'Open', 'High', 'Low', 'Close', 'Volume'])
         h1_df['Timestamp'] = pd.to_datetime(h1_df['Timestamp'], unit='ms', utc=True).dt.tz_convert(nairobi_zone)
         h1_df = ut_bot_alerts(h1_df, atr_period=H1_ATR_PERIOD, key_value=H1_KEY_VALUE)
-        last_h1 = h1_df[h1_df['Signal'] != 0].iloc[-1] if not h1_df[h1_df['Signal'] != 0].empty else None
+        
+        # Filter to complete H1 candles only (before current hour)
+        h1_complete = h1_df[h1_df['Timestamp'] < run_time.replace(minute=0, second=0, microsecond=0)]
+        last_h1 = h1_complete[h1_complete['Signal'] != 0].iloc[-1] if not h1_complete[h1_complete['Signal'] != 0].empty else None
         print(f"{symbol} H1 fetched at {h1_fetch_time.strftime('%d-%b %H:%M:%S')}, latest signal at {last_h1['Timestamp'] if last_h1 is not None else 'None'}")
 
         if last_h1 is None:
@@ -101,54 +104,53 @@ for symbol in symbols:
         range_10h = h1_df['High'].tail(RANGE_PERIOD).max() - h1_df['Low'].tail(RANGE_PERIOD).min()
         range_threshold = h1_df['Close'].iloc[-1] * RANGE_THRESHOLD_PCT
 
-        if h1_atr < atr_threshold or range_10h < range_threshold:
-            print(f"{symbol}: Market ranging - skipping (ATR: {h1_atr:.6f} < {atr_threshold:.6f}, Range: {range_10h:.6f} < {range_threshold:.6f})")
-            latest_signals[symbol] = (symbol.replace('/USDT', ''), 'Ranging', run_time, run_time)
-            continue
-
         h1_signal = last_h1['Signal']
         h1_time = last_h1['Timestamp']
 
-        # Fetch M5
+        # Fetch M5 regardless of volatility filter
         m5_fetch_time = datetime.now(nairobi_zone)
         m5_ohlcv = exchange.fetch_ohlcv(symbol, timeframe='5m', limit=100)
         m5_df = pd.DataFrame(m5_ohlcv, columns=['Timestamp', 'Open', 'High', 'Low', 'Close', 'Volume'])
         m5_df['Timestamp'] = pd.to_datetime(m5_df['Timestamp'], unit='ms', utc=True).dt.tz_convert(nairobi_zone)
         m5_df = ut_bot_alerts(m5_df, atr_period=M5_ATR_PERIOD, key_value=M5_KEY_VALUE)
 
-        # Latest M5 signal after H1, before run_time
-        m5_signals = m5_df[(m5_df['Signal'] == h1_signal) & (m5_df['Timestamp'] > h1_time) & (m5_df['Timestamp'] <= run_time)]
-        if not m5_signals.empty:
-            m5_entry = m5_signals.iloc[-1]['Timestamp']  # Latest M5 entry
-            signal_type = 'Buy' if h1_signal == 1 else 'Sell'
-            latest_signals[symbol] = (symbol.replace('/USDT', ''), signal_type, h1_time, m5_entry)
-            print(f"{symbol} M5 fetched at {m5_fetch_time.strftime('%d-%b %H:%M:%S')}, latest entry at {m5_entry}")
+        # Check volatility filter but still process M5
+        if h1_atr < atr_threshold or range_10h < range_threshold:
+            print(f"{symbol}: Market ranging - (ATR: {h1_atr:.6f} < {atr_threshold:.6f}, Range: {range_10h:.6f} < {range_threshold:.6f})")
+            latest_signals[symbol] = (symbol.replace('/USDT', ''), 'Ranging', h1_time, run_time)
         else:
-            latest_signals[symbol] = (symbol.replace('/USDT', ''), 'No M5 Signal', h1_time, run_time)
+            # Latest M5 signal after H1, before run_time
+            m5_signals = m5_df[(m5_df['Signal'] == h1_signal) & (m5_df['Timestamp'] > h1_time) & (m5_df['Timestamp'] <= run_time)]
+            if not m5_signals.empty:
+                m5_entry = m5_signals.iloc[-1]['Timestamp']  # Latest M5 entry
+                signal_type = 'Buy' if h1_signal == 1 else 'Sell'
+                latest_signals[symbol] = (symbol.replace('/USDT', ''), signal_type, h1_time, m5_entry)
+                print(f"{symbol} M5 fetched at {m5_fetch_time.strftime('%d-%b %H:%M:%S')}, latest entry at {m5_entry}")
+            else:
+                latest_signals[symbol] = (symbol.replace('/USDT', ''), 'No M5 Signal', h1_time, run_time)
 
     except Exception as e:
         error_msg = f"Error for {symbol}: {str(e)}"
         print(error_msg)
         latest_signals[symbol] = (symbol.replace('/USDT', ''), f"Error: {str(e)}", run_time, run_time)
 
-# Convert to list, filter last 30 minutes
+# Convert to list, include all signals
 final_signals = list(latest_signals.values())
 final_signals = sorted(final_signals, key=lambda x: x[3], reverse=True)
-recent_signals = [sig for sig in final_signals if (run_time - sig[3]).total_seconds() <= 1800]  # 30 minutes
 
-# Send summary
-if recent_signals:
+# Send summary with all pairs
+if final_signals:
     message = f"🔔 Latest UT Bot M5 Entries (H1: KV={H1_KEY_VALUE}, ATR={H1_ATR_PERIOD} | M5: KV={M5_KEY_VALUE}, ATR={M5_ATR_PERIOD})\nRun at {run_time.strftime('%d-%b %H:%M:%S')}\n\n"
-    message += f"{'Pair':<10} | {'Signal':<6} | {'H1 Time':<16} | {'M5 Entry'}\n"
+    message += f"{'Pair':<10} | {'Signal':<10} | {'H1 Time':<16} | {'M5 Entry'}\n"
     message += "-" * 60 + "\n"
-    for pair, signal, h1_time, m5_time in recent_signals[:7]:
+    for pair, signal, h1_time, m5_time in final_signals:
         h1_str = h1_time.strftime('%d-%b %H:%M') if isinstance(h1_time, pd.Timestamp) else 'N/A'
         m5_str = m5_time.strftime('%d-%b %H:%M') if isinstance(m5_time, pd.Timestamp) else 'N/A'
-        message += f"{pair:<10} | {signal:<6} | {h1_str:<16} | {m5_str}\n"
+        message += f"{pair:<10} | {signal:<10} | {h1_str:<16} | {m5_str}\n"
     print(message)
     send_telegram_message(message)
 else:
-    print("No recent signals in the last 30 minutes.")
-    send_telegram_message(f"🔔 No UT Bot signals in the last 30 minutes.\nRun at {run_time.strftime('%d-%b %H:%M:%S')}")
+    print("No signals detected.")
+    send_telegram_message(f"🔔 No UT Bot signals detected.\nRun at {run_time.strftime('%d-%b %H:%M:%S')}")
 
 print(f"Script ended at {datetime.now(nairobi_zone).strftime('%d-%b %H:%M:%S')}")
